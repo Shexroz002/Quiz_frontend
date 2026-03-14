@@ -26,6 +26,7 @@ import { CreateRoomPage } from "./pages/CreateRoomPage";
 import { NotificationPage } from "./pages/NotificationPage";
 import { NatijalarPage } from "./pages/NatijalarPage";
 import { ProtectedRoute } from "./components/ProtectedRoute";
+import { TopicStatisticPage } from "./pages/TopicStatisticPage";
 
 export const router = createBrowserRouter([
   {
@@ -133,6 +134,11 @@ export const router = createBrowserRouter([
       {
         path: "/natijalar",
         Component: NatijalarPage,
+      },
+      {
+        path: "/topic-statistic",
+        Component: TopicStatisticPage,
+        errorElement: <ErrorPage />,
       },
     ],
   },

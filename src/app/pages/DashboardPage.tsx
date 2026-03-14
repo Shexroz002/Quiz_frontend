@@ -5,7 +5,6 @@ import {
   BookOpen,
   ClipboardList,
   Trophy,
-  Star,
   Brain,
   BarChart3,
   ChevronRight,
@@ -48,6 +47,7 @@ type NotificationSocketEvent = NotificationCountUpdateEvent | TestInviteNotifica
 const NOTIFICATIONS_WS_BASE_URL = 'ws://localhost:8000/ws/notifications';
 const MULTIPLAYER_JOIN_URL = 'http://127.0.0.1:8000/api/v1/quiz/sessions/multiplayer/join/';
 const AUTH_ME_URL = 'http://127.0.0.1:8000/api/v1/auth/me/';
+const SUBJECT_ANALYTICS_URL = 'http://127.0.0.1:8000/api/v1/quiz/analytics/subjects';
 
 type CurrentUser = {
   id: number;
@@ -56,6 +56,22 @@ type CurrentUser = {
   last_name: string | null;
   role: string | null;
   profile_image: string | null;
+};
+
+type SubjectAnalytics = {
+  subject_name: string;
+  correct_answer: number;
+  wrong_answer: number;
+  total_answer: number;
+  percentage: number;
+};
+
+type SubjectCardConfig = {
+  icon: string;
+  color: string;
+  cardBackground: string;
+  cardBorder: string;
+  cardShadow: string;
 };
 
 const getAccessToken = () => {
@@ -95,6 +111,54 @@ const getDisplayName = (user: {
   return fullName || user.username;
 };
 
+const SUBJECT_CARD_CONFIG: Record<string, SubjectCardConfig> = {
+  Matematika: {
+    icon: '📐',
+    color: 'from-orange-400 to-orange-500',
+    cardBackground: 'bg-gradient-to-r from-[#FFF3E8] via-white to-[#FFF7ED]',
+    cardBorder: 'border-[#FED7AA]',
+    cardShadow: 'shadow-[0_8px_20px_rgba(251,146,60,0.12)]',
+  },
+  Fizika: {
+    icon: '⚛️',
+    color: 'from-blue-400 to-blue-500',
+    cardBackground: 'bg-gradient-to-r from-[#EEF4FF] via-white to-[#ECFEFF]',
+    cardBorder: 'border-[#BFDBFE]',
+    cardShadow: 'shadow-[0_8px_20px_rgba(59,130,246,0.12)]',
+  },
+  Kimyo: {
+    icon: '⚗️',
+    color: 'from-green-400 to-green-500',
+    cardBackground: 'bg-gradient-to-r from-[#ECFDF5] via-white to-[#F0FDFA]',
+    cardBorder: 'border-[#A7F3D0]',
+    cardShadow: 'shadow-[0_8px_20px_rgba(16,185,129,0.12)]',
+  },
+  'Ona tili': {
+    icon: '📚',
+    color: 'from-pink-400 to-pink-500',
+    cardBackground: 'bg-gradient-to-r from-[#FDF2F8] via-white to-[#FFF1F2]',
+    cardBorder: 'border-[#FBCFE8]',
+    cardShadow: 'shadow-[0_8px_20px_rgba(236,72,153,0.12)]',
+  },
+  'Ingliz tili': {
+    icon: '🌍',
+    color: 'from-violet-400 to-violet-500',
+    cardBackground: 'bg-gradient-to-r from-[#F5F3FF] via-white to-[#EEF2FF]',
+    cardBorder: 'border-[#DDD6FE]',
+    cardShadow: 'shadow-[0_8px_20px_rgba(139,92,246,0.12)]',
+  },
+};
+
+const getSubjectCardConfig = (subjectName: string): SubjectCardConfig => {
+  return SUBJECT_CARD_CONFIG[subjectName] ?? {
+    icon: '📘',
+    color: 'from-slate-400 to-slate-500',
+    cardBackground: 'bg-gradient-to-r from-[#F8FAFC] via-white to-[#F1F5F9]',
+    cardBorder: 'border-[#CBD5E1]',
+    cardShadow: 'shadow-[0_8px_20px_rgba(148,163,184,0.10)]',
+  };
+};
+
 const toAbsoluteAvatarUrl = (avatarUrl: string | null | undefined) => {
   if (!avatarUrl || !avatarUrl.trim()) return '';
   if (/^https?:\/\//i.test(avatarUrl)) return avatarUrl;
@@ -127,12 +191,12 @@ const parseNotificationSocketEvent = (raw: unknown): NotificationSocketEvent | n
   }
 
   if (type === 'test_invite_notification') {
-    const inviteData = candidate.data as TestInviteNotificationEvent['data'];
+    const inviteData = candidate.data as Partial<TestInviteNotificationEvent['data']>;
     if (!inviteData || typeof inviteData.id !== 'number') return null;
 
     return {
       type: 'test_invite_notification',
-      data: inviteData,
+      data: inviteData as TestInviteNotificationEvent['data'],
     };
   }
 
@@ -151,6 +215,9 @@ export function DashboardPage() {
   const [sessionCodeInput, setSessionCodeInput] = useState('');
   const [joinSessionError, setJoinSessionError] = useState('');
   const [isJoiningSession, setIsJoiningSession] = useState(false);
+  const [subjects, setSubjects] = useState<SubjectAnalytics[]>([]);
+  const [isSubjectsLoading, setIsSubjectsLoading] = useState(true);
+  const [subjectsError, setSubjectsError] = useState('');
 
   useEffect(() => {
     let isMounted = true;
@@ -179,6 +246,61 @@ export function DashboardPage() {
     };
 
     void fetchCurrentUser();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchSubjectAnalytics = async () => {
+      const accessToken = getAccessToken();
+
+      if (!accessToken) {
+        if (!isMounted) return;
+        setSubjects([]);
+        setSubjectsError("Token topilmadi. Fanlar statistikasi yuklanmadi.");
+        setIsSubjectsLoading(false);
+        return;
+      }
+
+      try {
+        setIsSubjectsLoading(true);
+        setSubjectsError('');
+
+        const response = await fetch(SUBJECT_ANALYTICS_URL, {
+          method: 'GET',
+          headers: {
+            accept: 'application/json',
+            Authorization: `Bearer ${accessToken}`,
+          },
+        });
+
+        if (!response.ok) {
+          if (!isMounted) return;
+          setSubjects([]);
+          setSubjectsError("Fanlar statistikasi yuklanmadi. Qaytadan urinib ko'ring.");
+          return;
+        }
+
+        const payload = (await response.json()) as SubjectAnalytics[];
+
+        if (!isMounted) return;
+        setSubjects(Array.isArray(payload) ? payload : []);
+      } catch {
+        if (!isMounted) return;
+        setSubjects([]);
+        setSubjectsError("Fanlar statistikasi yuklanmadi. Qaytadan urinib ko'ring.");
+      } finally {
+        if (isMounted) {
+          setIsSubjectsLoading(false);
+        }
+      }
+    };
+
+    void fetchSubjectAnalytics();
 
     return () => {
       isMounted = false;
@@ -369,18 +491,14 @@ export function DashboardPage() {
     setNotificationCount((prev) => Math.max(0, prev - 1));
   };
 
-  const subjects = [
-    { name: 'Matematika', icon: '📐', progress: 75, color: 'from-orange-400 to-orange-500', tests: 12, xp: 450 },
-    { name: 'Fizika', icon: '⚛️', progress: 60, color: 'from-blue-400 to-blue-500', tests: 8, xp: 320 },
-    { name: 'Ona tili', icon: '📚', progress: 42, color: 'from-purple-400 to-purple-500', tests: 5, xp: 210 },
-    { name: 'Ingliz tili', icon: '🌍', progress: 88, color: 'from-green-400 to-green-500', tests: 15, xp: 580 },
-  ];
-
   return (
-    <div className="min-h-screen bg-[#F8FAFC] pb-24">
+    <div className="min-h-screen bg-[#F8FAFC] pb-36">
       {/* Header with Modern Soft Gradient */}
-      <div className="bg-gradient-to-br from-[#5B5FEF] via-[#6366F1] to-[#7C7FF6] px-5 pt-8 pb-8 rounded-b-[28px] shadow-lg">
-        <div className="flex items-center justify-between mb-2">
+      <div className="relative overflow-hidden bg-gradient-to-br from-[#5B5FEF] via-[#676AF5] to-[#7C7FF6] px-5 pt-8 pb-8 rounded-b-[28px] shadow-lg">
+        <div className="absolute -top-7 -right-4 h-28 w-28 rounded-full bg-white/10 blur-[1px]" />
+        <div className="absolute -bottom-10 -left-8 h-32 w-32 rounded-full bg-white/10 blur-[1px]" />
+
+        <div className="relative flex items-center justify-between mb-2">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center shadow-md border border-white/30 overflow-hidden">
               {profileImageUrl ? (
@@ -411,24 +529,24 @@ export function DashboardPage() {
       </div>
 
       {/* Main Content */}
-      <div className="px-5 -mt-4 space-y-4">
+      <div className="px-5 mt-4 space-y-4">
         {/* Main Action Section */}
         <div className="space-y-3">
           {/* Large Primary Button - Test ishlash */}
           <button
             onClick={() => navigate('/tests-list')}
-            className="w-full bg-gradient-to-r from-[#22C55E] to-[#16A34A] rounded-[20px] p-5 shadow-[0_8px_20px_rgba(34,197,94,0.25)] flex items-center justify-between active:scale-[0.98] transition-all min-h-[80px]"
+            className="w-full rounded-[22px] border border-[#B7E8C7] bg-[linear-gradient(135deg,#EAFBF1_0%,#F7FFFA_52%,#E8FFF5_100%)] p-5 shadow-[0_14px_28px_rgba(34,197,94,0.14)] flex items-center justify-between active:scale-[0.98] transition-all min-h-[84px]"
           >
             <div className="flex items-center gap-4">
-              <div className="w-14 h-14 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
-                <ClipboardList className="w-7 h-7 text-white stroke-[2]" />
+              <div className="w-14 h-14 rounded-2xl flex items-center justify-center bg-[linear-gradient(135deg,#22C55E_0%,#16A34A_100%)] text-white shadow-[0_12px_22px_rgba(34,197,94,0.28)]">
+                <ClipboardList className="w-7 h-7 stroke-[2]" />
               </div>
               <div className="text-left">
-                <h3 className="text-white font-semibold text-[22px] leading-tight mb-1">Test ishlash</h3>
-                <p className="text-white/90 text-[14px] leading-tight">Bilimingizni sinang</p>
+                <h3 className="text-slate-900 font-semibold text-[22px] leading-tight mb-1">Test ishlash</h3>
+                <p className="text-slate-600 text-[14px] leading-tight">Bilimingizni sinang</p>
               </div>
             </div>
-            <div className="text-white">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/92 text-[#16A34A] shadow-[0_10px_18px_rgba(15,23,42,0.10)]">
               <ChevronRight className="w-7 h-7 stroke-[2.5]" />
             </div>
           </button>
@@ -436,18 +554,18 @@ export function DashboardPage() {
           {/* Secondary Button - Test yaratish */}
           <button
             onClick={() => navigate('/create-test')}
-            className="w-full bg-white rounded-[20px] p-5 shadow-[0_8px_20px_rgba(0,0,0,0.06)] flex items-center justify-between active:scale-[0.98] transition-all min-h-[72px]"
+            className="w-full rounded-[20px] border border-[#C7D2FE] bg-gradient-to-r from-[#EEF2FF] via-white to-[#F5F3FF] p-5 shadow-[0_10px_24px_rgba(99,102,241,0.12)] flex items-center justify-between active:scale-[0.98] transition-all min-h-[72px]"
           >
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-[#5B5FEF]/10 rounded-xl flex items-center justify-center">
-                <BookOpen className="w-6 h-6 text-[#5B5FEF] stroke-[2]" />
+              <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-[linear-gradient(135deg,#5B5FEF_0%,#8B5CF6_100%)] text-white shadow-md">
+                <BookOpen className="w-6 h-6 stroke-[2]" />
               </div>
               <div className="text-left">
-                <h3 className="text-[#1E293B] font-semibold text-[17px] leading-tight">Test yaratish</h3>
-                <p className="text-[#64748B] text-[14px] leading-tight mt-0.5">PDF yoki AI orqali</p>
+                <h3 className="text-slate-900 font-semibold text-[17px] leading-tight">Test yaratish</h3>
+                <p className="text-slate-600 text-[14px] leading-tight mt-0.5">PDF yoki AI orqali</p>
               </div>
             </div>
-            <div className="text-[#64748B]">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-[#5B5FEF] shadow-sm">
               <ChevronRight className="w-6 h-6 stroke-[2]" />
             </div>
           </button>
@@ -457,25 +575,25 @@ export function DashboardPage() {
             {/* Natijalar Card */}
             <button
               onClick={() => navigate('/natijalar')}
-              className="bg-white rounded-[20px] p-5 shadow-[0_8px_20px_rgba(0,0,0,0.06)] active:scale-[0.98] transition-all min-h-[120px] flex flex-col items-start"
+              className="rounded-[20px] border border-[#FCD34D] bg-gradient-to-r from-[#FFF7ED] via-white to-[#FFFBEB] p-5 shadow-[0_10px_24px_rgba(245,158,11,0.12)] active:scale-[0.98] transition-all min-h-[120px] flex flex-col items-start"
             >
-              <div className="w-12 h-12 bg-[#F59E0B]/10 rounded-xl flex items-center justify-center mb-3">
-                <BarChart3 className="w-6 h-6 text-[#F59E0B] stroke-[2]" />
+              <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-3 bg-[linear-gradient(135deg,#F59E0B_0%,#F97316_100%)] text-white shadow-md">
+                <BarChart3 className="w-6 h-6 stroke-[2]" />
               </div>
-              <h3 className="text-[#1E293B] font-semibold text-[16px] mb-0.5 text-left leading-tight">Natijalar</h3>
-              <p className="text-[#64748B] text-[13px] text-left leading-tight">Statistika</p>
+              <h3 className="text-slate-900 font-semibold text-[16px] mb-0.5 text-left leading-tight">Natijalar</h3>
+              <p className="text-slate-600 text-[13px] text-left leading-tight">Statistika</p>
             </button>
 
             {/* Do'stlar bilan ishlash Card */}
             <button
               onClick={() => navigate('/create-room')}
-              className="bg-white rounded-[20px] p-5 shadow-[0_8px_20px_rgba(0,0,0,0.06)] active:scale-[0.98] transition-all min-h-[120px] flex flex-col items-start"
+              className="rounded-[20px] border border-[#FBCFE8] bg-gradient-to-r from-[#FDF2F8] via-white to-[#FFF1F2] p-5 shadow-[0_10px_24px_rgba(236,72,153,0.12)] active:scale-[0.98] transition-all min-h-[120px] flex flex-col items-start"
             >
-              <div className="w-12 h-12 bg-[#F59E0B]/10 rounded-xl flex items-center justify-center mb-3">
-                <Trophy className="w-6 h-6 text-[#F59E0B] stroke-[2]" />
+              <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-3 bg-[linear-gradient(135deg,#EC4899_0%,#F43F5E_100%)] text-white shadow-md">
+                <Trophy className="w-6 h-6 stroke-[2]" />
               </div>
-              <h3 className="text-[#1E293B] font-semibold text-[16px] mb-0.5 text-left leading-tight">Do'stlar bilan ishlash</h3>
-              <p className="text-[#64748B] text-[13px] text-left leading-tight">Real vaqtda</p>
+              <h3 className="text-slate-900 font-semibold text-[16px] mb-0.5 text-left leading-tight">Do'stlar bilan ishlash</h3>
+              <p className="text-slate-600 text-[13px] text-left leading-tight">Real vaqtda</p>
             </button>
           </div>
 
@@ -518,41 +636,77 @@ export function DashboardPage() {
           </div>
 
           <div className="space-y-3">
-            {subjects.map((subject) => (
-              <div
-                key={subject.name}
-                className="bg-[#F8FAFC] rounded-[18px] p-4 border border-gray-100/50"
-              >
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-2xl shadow-sm">
-                    {subject.icon}
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between mb-1">
-                      <h4 className="text-[#1E293B] font-semibold text-[16px] leading-tight">{subject.name}</h4>
-                      <span className="text-[#5B5FEF] font-bold text-[20px] leading-tight">{subject.progress}%</span>
-                    </div>
-                    <div className="flex items-center gap-3 text-[13px] text-[#64748B]">
-                      <span className="flex items-center gap-1">
-                        <ClipboardList className="w-3.5 h-3.5 stroke-[2]" />
-                        {subject.tests} test
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Star className="w-3.5 h-3.5 text-[#F59E0B] stroke-[2]" fill="currentColor" />
-                        {subject.xp} XP
-                      </span>
+            {isSubjectsLoading ? (
+              Array.from({ length: 3 }).map((_, index) => (
+                <div
+                  key={index}
+                  className="rounded-[18px] border border-[#D7E3FF] bg-gradient-to-r from-[#F3F6FF] via-white to-[#EEFBFF] p-4 shadow-[0_8px_20px_rgba(148,163,184,0.10)] animate-pulse"
+                >
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-12 h-12 rounded-xl bg-white shadow-sm" />
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="h-4 w-28 rounded bg-slate-200" />
+                        <div className="h-5 w-12 rounded bg-slate-200" />
+                      </div>
+                      <div className="flex gap-3">
+                        <div className="h-3 w-20 rounded bg-slate-200" />
+                        <div className="h-3 w-24 rounded bg-slate-200" />
+                      </div>
                     </div>
                   </div>
+                  <div className="h-2 w-full rounded-full bg-slate-200" />
                 </div>
-
-                <div className="w-full h-2 bg-gray-200/60 rounded-full overflow-hidden">
-                  <div
-                    style={{ width: `${subject.progress}%` }}
-                    className={`h-full bg-gradient-to-r ${subject.color} rounded-full transition-all duration-300`}
-                  />
-                </div>
+              ))
+            ) : subjectsError ? (
+              <div className="rounded-[18px] border border-rose-200 bg-rose-50 px-4 py-3">
+                <p className="text-[13px] text-rose-700">{subjectsError}</p>
               </div>
-            ))}
+            ) : subjects.length === 0 ? (
+              <div className="rounded-[18px] border border-slate-200 bg-slate-50 px-4 py-4">
+                <p className="text-[13px] text-slate-600">Fanlar statistikasi hozircha mavjud emas.</p>
+              </div>
+            ) : (
+              subjects.map((subject) => {
+                const { icon, color, cardBackground, cardBorder, cardShadow } = getSubjectCardConfig(subject.subject_name);
+
+                return (
+                  <div
+                    key={subject.subject_name}
+                    className={`rounded-[18px] border p-4 ${cardBackground} ${cardBorder} ${cardShadow}`}
+                  >
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-2xl shadow-sm">
+                        {icon}
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between mb-1">
+                          <h4 className="text-[#1E293B] font-semibold text-[16px] leading-tight">{subject.subject_name}</h4>
+                          <span className="text-[#5B5FEF] font-bold text-[20px] leading-tight">
+                            {Math.round(subject.percentage)}%
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-3 text-[13px] text-[#64748B] flex-wrap">
+                          <span className="flex items-center gap-1">
+                            <ClipboardList className="w-3.5 h-3.5 stroke-[2]" />
+                            {subject.total_answer} ta javob
+                          </span>
+                          <span>To'g'ri: {subject.correct_answer}</span>
+                          <span>Xato: {subject.wrong_answer}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="w-full h-2 bg-gray-200/60 rounded-full overflow-hidden">
+                      <div
+                        style={{ width: `${Math.max(0, Math.min(subject.percentage, 100))}%` }}
+                        className={`h-full bg-gradient-to-r ${color} rounded-full transition-all duration-300`}
+                      />
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
         </div>
       </div>

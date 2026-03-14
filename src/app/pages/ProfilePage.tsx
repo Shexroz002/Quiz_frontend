@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { type ChangeEvent, useEffect, useRef, useState } from 'react';
 import { motion } from 'motion/react';
-import { 
+import {
   ArrowLeft, 
   Camera, 
   User, 
@@ -8,82 +8,261 @@ import {
   Phone, 
   School, 
   BookOpen, 
-  Target,
-  Clock,
-  Bell,
   Check,
-  X,
-  ChevronRight
+  X
 } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import { BottomNavigation } from '../components/BottomNavigation';
+import { getAccessToken } from '../lib/auth';
+
+const AUTH_ME_URL = 'http://127.0.0.1:8000/api/v1/auth/me/';
+const USERS_BASE_URL = 'http://127.0.0.1:8000/api/v1/users';
+const SUBJECT_LIST_URL = 'http://127.0.0.1:8000/api/v1/subject/list/';
+
+type ProfileSubject = {
+  id: number;
+  subject: {
+    id: number;
+    name: string;
+    type: string;
+    icon: string | null;
+  };
+};
+
+type ProfileResponse = {
+  id: number;
+  username: string;
+  first_name: string | null;
+  last_name: string | null;
+  role: string | null;
+  profile_image: string | null;
+  email: string | null;
+  phone_number: string | null;
+  school_name: string | null;
+  education_level: string | null;
+  subjects: ProfileSubject[];
+};
+
+type UserSubjectCard = {
+  id: number;
+  name: string;
+  icon: string;
+};
+
+type SubjectListItem = {
+  id: number;
+  name: string;
+  type: string;
+  icon: string | null;
+};
 
 export function ProfilePage() {
   const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState(false);
-  const [selectedAvatar, setSelectedAvatar] = useState('👨‍🎓');
-  const [showAvatarPicker, setShowAvatarPicker] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement | null>(null);
+  const [profileId, setProfileId] = useState<number | null>(null);
+  const [profileImageUrl, setProfileImageUrl] = useState('');
+  const [isProfileLoading, setIsProfileLoading] = useState(true);
+  const [profileError, setProfileError] = useState('');
+  const [avatarError, setAvatarError] = useState('');
+  const [avatarSuccessMessage, setAvatarSuccessMessage] = useState('');
+  const [isAvatarUploading, setIsAvatarUploading] = useState(false);
+  const [userSubjects, setUserSubjects] = useState<UserSubjectCard[]>([]);
+  const [selectedSubjectIds, setSelectedSubjectIds] = useState<number[]>([]);
+  const [availableSubjects, setAvailableSubjects] = useState<SubjectListItem[]>([]);
+  const [isSubjectsCatalogLoading, setIsSubjectsCatalogLoading] = useState(false);
+  const [subjectsCatalogError, setSubjectsCatalogError] = useState('');
 
-  // Form state
   const [formData, setFormData] = useState({
-    firstName: 'Azamat',
-    lastName: 'Rahimov',
-    email: 'azamat.rahimov@example.com',
-    phone: '+998 90 123 45 67',
-    school: 'Respublika ixtisoslashtirilgan maktabi',
-    grade: '11-sinf',
-    bio: 'Matematika va fizikaga qiziqaman. DTM ga tayyorlanmoqdaman.',
-    studyGoal: 'DTM 2024',
-    preferredStudyTime: 'Kechqurun',
-    notificationsEnabled: true,
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: '',
+    school: '',
+    grade: '',
   });
+  useEffect(() => {
+    let isMounted = true;
 
-  const [selectedSubjects, setSelectedSubjects] = useState([
-    'Matematika',
-    'Fizika',
-    'Ingliz tili',
-    'Kimyo'
-  ]);
+    const fetchProfile = async () => {
+      const accessToken = getAccessToken();
 
-  const avatarOptions = ['👨‍🎓', '👩‍🎓', '👨‍💼', '👩‍💼', '👦', '👧', '🧑‍🎓', '👨‍🏫', '👩‍🏫'];
-  
-  const allSubjects = [
-    { name: 'Matematika', icon: '📐', color: 'from-orange-400 to-orange-500' },
-    { name: 'Fizika', icon: '⚛️', color: 'from-blue-400 to-blue-500' },
-    { name: 'Kimyo', icon: '⚗️', color: 'from-green-400 to-green-500' },
-    { name: 'Biologiya', icon: '🧬', color: 'from-teal-400 to-teal-500' },
-    { name: 'Ona tili', icon: '📚', color: 'from-purple-400 to-purple-500' },
-    { name: 'Ingliz tili', icon: '🌍', color: 'from-indigo-400 to-indigo-500' },
-    { name: 'Tarix', icon: '📜', color: 'from-amber-400 to-amber-500' },
-    { name: 'Geografiya', icon: '🗺️', color: 'from-cyan-400 to-cyan-500' },
-  ];
+      if (!accessToken) {
+        if (!isMounted) return;
+        setProfileError("Token topilmadi. Profil yuklanmadi.");
+        setIsProfileLoading(false);
+        return;
+      }
 
-  const studyGoals = [
-    'DTM 2024',
-    'DTM 2025',
-    'Olimpiada',
-    'Maktab imtihonlari',
-    'IELTS/CEFR',
-    'Shunchaki o\'rganish'
-  ];
+      try {
+        setIsProfileLoading(true);
+        setProfileError('');
 
-  const studyTimes = [
-    'Ertalab',
-    'Kunduzi',
-    'Kechqurun',
-    'Tunda',
-    'Har qanday vaqt'
-  ];
+        const response = await fetch(AUTH_ME_URL, {
+          method: 'GET',
+          headers: {
+            accept: 'application/json',
+            Authorization: `Bearer ${accessToken}`,
+          },
+        });
+
+        if (!response.ok) {
+          if (!isMounted) return;
+          setProfileError("Profil ma'lumotlari yuklanmadi. Qaytadan urinib ko'ring.");
+          return;
+        }
+
+        const payload = (await response.json()) as ProfileResponse;
+
+        if (!isMounted) return;
+
+        setProfileId(payload.id);
+        setFormData((prev) => ({
+          ...prev,
+          firstName: payload.first_name ?? '',
+          lastName: payload.last_name ?? '',
+          email: payload.email ?? '',
+          phone: payload.phone_number ?? '',
+          school: payload.school_name ?? '',
+          grade: payload.education_level ?? '',
+        }));
+        setProfileImageUrl(payload.profile_image ?? '');
+        setUserSubjects(
+          payload.subjects.map((item) => ({
+            id: item.subject.id,
+            name: item.subject.name,
+            icon: item.subject.icon?.trim() || '📘',
+          }))
+        );
+        setSelectedSubjectIds(payload.subjects.map((item) => item.subject.id));
+      } catch {
+        if (!isMounted) return;
+        setProfileError("Profil ma'lumotlari yuklanmadi. Qaytadan urinib ko'ring.");
+      } finally {
+        if (isMounted) {
+          setIsProfileLoading(false);
+        }
+      }
+    };
+
+    void fetchProfile();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    if (!isEditing) {
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    const fetchSubjectsCatalog = async () => {
+      try {
+        setIsSubjectsCatalogLoading(true);
+        setSubjectsCatalogError('');
+
+        const response = await fetch(SUBJECT_LIST_URL, {
+          method: 'GET',
+          headers: {
+            accept: 'application/json',
+          },
+        });
+
+        if (!response.ok) {
+          if (!isMounted) return;
+          setAvailableSubjects([]);
+          setSubjectsCatalogError("Fanlar ro'yxati yuklanmadi. Qaytadan urinib ko'ring.");
+          return;
+        }
+
+        const payload = (await response.json()) as SubjectListItem[];
+
+        if (!isMounted) return;
+        setAvailableSubjects(Array.isArray(payload) ? payload : []);
+      } catch {
+        if (!isMounted) return;
+        setAvailableSubjects([]);
+        setSubjectsCatalogError("Fanlar ro'yxati yuklanmadi. Qaytadan urinib ko'ring.");
+      } finally {
+        if (isMounted) {
+          setIsSubjectsCatalogLoading(false);
+        }
+      }
+    };
+
+    void fetchSubjectsCatalog();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isEditing]);
 
   const handleInputChange = (field: string, value: string | boolean) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const toggleSubject = (subjectName: string) => {
-    if (selectedSubjects.includes(subjectName)) {
-      setSelectedSubjects(prev => prev.filter(s => s !== subjectName));
-    } else {
-      setSelectedSubjects(prev => [...prev, subjectName]);
+  const toggleSubject = (subjectId: number) => {
+    setSelectedSubjectIds((prev) => (
+      prev.includes(subjectId)
+        ? prev.filter((id) => id !== subjectId)
+        : [...prev, subjectId]
+    ));
+  };
+
+  const handleAvatarFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+
+    if (!file) {
+      return;
+    }
+
+    if (!profileId) {
+      setAvatarError('Foydalanuvchi ID topilmadi. Avatar yuklanmadi.');
+      event.target.value = '';
+      return;
+    }
+
+    const accessToken = getAccessToken();
+    if (!accessToken) {
+      setAvatarError("Token topilmadi. Avatar yuklanmadi.");
+      event.target.value = '';
+      return;
+    }
+
+    try {
+      setIsAvatarUploading(true);
+      setAvatarError('');
+      setAvatarSuccessMessage('');
+
+      const formData = new FormData();
+      formData.append('avatar', file);
+
+      const response = await fetch(`${USERS_BASE_URL}/${profileId}/avatar/`, {
+        method: 'PUT',
+        headers: {
+          accept: 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        setAvatarError("Avatarni yuklashda xatolik bo'ldi. Qaytadan urinib ko'ring.");
+        return;
+      }
+
+      setProfileImageUrl(URL.createObjectURL(file));
+      setAvatarSuccessMessage('Avatar yangilandi.');
+    } catch {
+      setAvatarError("Avatarni yuklashda xatolik bo'ldi. Qaytadan urinib ko'ring.");
+    } finally {
+      setIsAvatarUploading(false);
+      event.target.value = '';
     }
   };
 
@@ -99,7 +278,7 @@ export function ProfilePage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] pb-24">
+    <div className="min-h-screen bg-[#F8FAFC] pb-36">
       {/* Header */}
       <div className="bg-gradient-to-br from-[#5B5FEF] via-[#6366F1] to-[#7C7FF6] px-5 pt-8 pb-24 relative">
         <div className="flex items-center justify-between mb-6">
@@ -141,52 +320,62 @@ export function ProfilePage() {
       {/* Profile Avatar Section */}
       <div className="px-5 -mt-16 mb-6">
         <div className="bg-white rounded-[20px] p-6 shadow-[0_8px_20px_rgba(0,0,0,0.06)] text-center">
-          <div className="relative inline-block mb-4">
-            <div className="w-24 h-24 bg-gradient-to-br from-purple-100 to-indigo-100 rounded-full flex items-center justify-center text-5xl border-4 border-white shadow-lg">
-              {selectedAvatar}
+          {profileError ? (
+            <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-left">
+              <p className="text-sm text-rose-700">{profileError}</p>
             </div>
-            {isEditing && (
-              <button
-                onClick={() => setShowAvatarPicker(!showAvatarPicker)}
-                className="absolute bottom-0 right-0 w-8 h-8 bg-[#5B5FEF] rounded-full flex items-center justify-center shadow-md hover:bg-[#4B4FD0] transition-colors"
-              >
-                <Camera className="w-4 h-4 text-white stroke-[2]" />
-              </button>
-            )}
+          ) : null}
+
+          <div className="relative inline-block mb-4">
+            <div className="w-24 h-24 bg-[linear-gradient(145deg,#4F46E5_0%,#6366F1_42%,#06B6D4_100%)] rounded-full flex items-center justify-center text-5xl border-4 border-white shadow-[0_18px_40px_rgba(79,70,229,0.24)] overflow-hidden">
+              {profileImageUrl ? (
+                <img src={profileImageUrl} alt="Profile" className="w-full h-full object-cover" />
+              ) : (
+                '👨‍🎓'
+              )}
+            </div>
+            <input
+              ref={avatarInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(event) => void handleAvatarFileChange(event)}
+            />
+            <button
+              type="button"
+              onClick={() => avatarInputRef.current?.click()}
+              disabled={isAvatarUploading || isProfileLoading}
+              className="absolute bottom-0 right-0 w-8 h-8 bg-[#5B5FEF] rounded-full flex items-center justify-center shadow-md hover:bg-[#4B4FD0] transition-colors disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              <Camera className="w-4 h-4 text-white stroke-[2]" />
+            </button>
           </div>
 
-          {showAvatarPicker && isEditing && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="flex flex-wrap justify-center gap-3 mb-4 p-4 bg-[#F8FAFC] rounded-xl"
-            >
-              {avatarOptions.map((avatar) => (
-                <button
-                  key={avatar}
-                  onClick={() => {
-                    setSelectedAvatar(avatar);
-                    setShowAvatarPicker(false);
-                  }}
-                  className={`w-12 h-12 rounded-full flex items-center justify-center text-2xl transition-all ${
-                    selectedAvatar === avatar
-                      ? 'bg-[#5B5FEF] scale-110 ring-2 ring-[#5B5FEF] ring-offset-2'
-                      : 'bg-white hover:scale-105'
-                  }`}
-                >
-                  {avatar}
-                </button>
-              ))}
-            </motion.div>
-          )}
+          {avatarError ? (
+            <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-left">
+              <p className="text-sm text-rose-700">{avatarError}</p>
+            </div>
+          ) : null}
+
+          {avatarSuccessMessage ? (
+            <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-left">
+              <p className="text-sm text-emerald-700">{avatarSuccessMessage}</p>
+            </div>
+          ) : null}
+
+          <div className="mb-4">
+            <p className="text-xs font-medium text-slate-500">
+              {isAvatarUploading ? 'Avatar yuklanmoqda...' : 'Avatar rasmi alohida yangilanadi'}
+            </p>
+          </div>
 
           <h2 className="text-2xl font-bold text-[#1E293B] mb-1">
-            {formData.firstName} {formData.lastName}
+            {isProfileLoading ? 'Yuklanmoqda...' : `${formData.firstName} ${formData.lastName}`.trim() || 'Foydalanuvchi'}
           </h2>
-          <p className="text-[#64748B] text-sm mb-3">{formData.school}</p>
+          <p className="text-[#64748B] text-sm mb-3">{formData.school || 'Maktab kiritilmagan'}</p>
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-[#5B5FEF]/10 rounded-full">
             <School className="w-4 h-4 text-[#5B5FEF] stroke-[2]" />
-            <span className="text-[#5B5FEF] font-semibold text-sm">{formData.grade}</span>
+            <span className="text-[#5B5FEF] font-semibold text-sm">{formData.grade || 'Daraja kiritilmagan'}</span>
           </div>
         </div>
       </div>
@@ -211,7 +400,7 @@ export function ProfilePage() {
                   className="w-full px-4 py-3 bg-[#F8FAFC] border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#5B5FEF] focus:border-transparent text-[#1E293B] font-medium"
                 />
               ) : (
-                <p className="text-[#1E293B] font-semibold">{formData.firstName}</p>
+                <p className="text-[#1E293B] font-semibold">{formData.firstName || '-'}</p>
               )}
             </div>
 
@@ -226,7 +415,7 @@ export function ProfilePage() {
                   className="w-full px-4 py-3 bg-[#F8FAFC] border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#5B5FEF] focus:border-transparent text-[#1E293B] font-medium"
                 />
               ) : (
-                <p className="text-[#1E293B] font-semibold">{formData.lastName}</p>
+                <p className="text-[#1E293B] font-semibold">{formData.lastName || '-'}</p>
               )}
             </div>
 
@@ -244,7 +433,7 @@ export function ProfilePage() {
                   className="w-full px-4 py-3 bg-[#F8FAFC] border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#5B5FEF] focus:border-transparent text-[#1E293B] font-medium"
                 />
               ) : (
-                <p className="text-[#1E293B] font-semibold">{formData.email}</p>
+                <p className="text-[#1E293B] font-semibold">{formData.email || '-'}</p>
               )}
             </div>
 
@@ -262,7 +451,7 @@ export function ProfilePage() {
                   className="w-full px-4 py-3 bg-[#F8FAFC] border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#5B5FEF] focus:border-transparent text-[#1E293B] font-medium"
                 />
               ) : (
-                <p className="text-[#1E293B] font-semibold">{formData.phone}</p>
+                <p className="text-[#1E293B] font-semibold">{formData.phone || '-'}</p>
               )}
             </div>
           </div>
@@ -287,7 +476,7 @@ export function ProfilePage() {
                   className="w-full px-4 py-3 bg-[#F8FAFC] border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#5B5FEF] focus:border-transparent text-[#1E293B] font-medium"
                 />
               ) : (
-                <p className="text-[#1E293B] font-semibold">{formData.school}</p>
+                <p className="text-[#1E293B] font-semibold">{formData.school || '-'}</p>
               )}
             </div>
 
@@ -306,7 +495,7 @@ export function ProfilePage() {
                   <option value="Universitet">Universitet</option>
                 </select>
               ) : (
-                <p className="text-[#1E293B] font-semibold">{formData.grade}</p>
+                <p className="text-[#1E293B] font-semibold">{formData.grade || '-'}</p>
               )}
             </div>
           </div>
@@ -319,158 +508,88 @@ export function ProfilePage() {
             Fanlar
           </h3>
 
-          <div className="grid grid-cols-2 gap-3">
-            {allSubjects.map((subject) => {
-              const isSelected = selectedSubjects.includes(subject.name);
-              return (
-                <button
-                  key={subject.name}
-                  onClick={() => isEditing && toggleSubject(subject.name)}
-                  disabled={!isEditing}
-                  className={`p-3 rounded-xl border-2 transition-all ${
-                    isSelected
-                      ? 'border-[#5B5FEF] bg-[#5B5FEF]/5'
-                      : 'border-gray-200 bg-[#F8FAFC]'
-                  } ${isEditing ? 'cursor-pointer active:scale-95' : 'cursor-default'}`}
+          {!isEditing && userSubjects.length === 0 ? (
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4">
+              <p className="text-sm text-slate-600">Foydalanuvchiga biriktirilgan fanlar topilmadi.</p>
+            </div>
+          ) : isEditing ? (
+            isSubjectsCatalogLoading ? (
+              <div className="grid grid-cols-2 gap-3">
+                {Array.from({ length: 4 }).map((_, index) => (
+                  <div key={index} className="rounded-xl border-2 border-slate-200 bg-slate-50 p-3 animate-pulse">
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="h-12 w-12 rounded-xl bg-slate-200" />
+                      <div className="h-4 w-20 rounded bg-slate-200" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : subjectsCatalogError ? (
+              <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-4">
+                <p className="text-sm text-rose-700">{subjectsCatalogError}</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                {availableSubjects.map((subject) => {
+                  const isSelected = selectedSubjectIds.includes(subject.id);
+
+                  return (
+                    <button
+                      key={subject.id}
+                      type="button"
+                      onClick={() => toggleSubject(subject.id)}
+                      className={`p-3 rounded-xl border-2 transition-all active:scale-95 ${
+                        isSelected
+                          ? 'border-[#5B5FEF] bg-[#5B5FEF]/5'
+                          : 'border-gray-200 bg-[#F8FAFC]'
+                      }`}
+                    >
+                      <div className="flex flex-col items-center gap-2">
+                        <div className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl shadow-sm bg-white">
+                          {subject.icon?.trim() || '📘'}
+                        </div>
+                        <div className="text-center w-full">
+                          <p className={`font-semibold text-sm leading-tight ${isSelected ? 'text-[#5B5FEF]' : 'text-[#1E293B]'}`}>
+                            {subject.name}
+                          </p>
+                        </div>
+                        {isSelected ? (
+                          <div className="w-5 h-5 bg-[#5B5FEF] rounded-full flex items-center justify-center mt-1">
+                            <Check className="w-3 h-3 text-white stroke-[3]" />
+                          </div>
+                        ) : (
+                          <div className="w-5 h-5 mt-1" />
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              {userSubjects.map((subject) => (
+                <div
+                  key={subject.id}
+                  className="p-3 rounded-xl border-2 border-[#5B5FEF] bg-[#5B5FEF]/5"
                 >
                   <div className="flex flex-col items-center gap-2">
-                    <div className={`w-12 h-12 bg-gradient-to-br ${subject.color} rounded-xl flex items-center justify-center text-2xl shadow-sm`}>
+                    <div className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl shadow-sm bg-white">
                       {subject.icon}
                     </div>
                     <div className="text-center w-full">
-                      <p className={`font-semibold text-sm leading-tight ${isSelected ? 'text-[#5B5FEF]' : 'text-[#1E293B]'}`}>
+                      <p className="font-semibold text-sm leading-tight text-[#5B5FEF]">
                         {subject.name}
                       </p>
                     </div>
-                    {isSelected && (
-                      <div className="w-5 h-5 bg-[#5B5FEF] rounded-full flex items-center justify-center mt-1">
-                        <Check className="w-3 h-3 text-white stroke-[3]" />
-                      </div>
-                    )}
+                    <div className="w-5 h-5 bg-[#5B5FEF] rounded-full flex items-center justify-center mt-1">
+                      <Check className="w-3 h-3 text-white stroke-[3]" />
+                    </div>
                   </div>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Study Preferences */}
-        <div className="bg-white rounded-[20px] p-5 shadow-[0_8px_20px_rgba(0,0,0,0.06)]">
-          <h3 className="text-lg font-bold text-[#1E293B] mb-4 flex items-center gap-2">
-            <Target className="w-5 h-5 text-[#5B5FEF] stroke-[2]" />
-            O'qish sozlamalari
-          </h3>
-
-          <div className="space-y-4">
-            {/* Study Goal */}
-            <div>
-              <label className="text-sm font-semibold text-[#64748B] mb-2 block">Maqsad</label>
-              {isEditing ? (
-                <select
-                  value={formData.studyGoal}
-                  onChange={(e) => handleInputChange('studyGoal', e.target.value)}
-                  className="w-full px-4 py-3 bg-[#F8FAFC] border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#5B5FEF] focus:border-transparent text-[#1E293B] font-medium"
-                >
-                  {studyGoals.map((goal) => (
-                    <option key={goal} value={goal}>{goal}</option>
-                  ))}
-                </select>
-              ) : (
-                <p className="text-[#1E293B] font-semibold">{formData.studyGoal}</p>
-              )}
+                </div>
+              ))}
             </div>
-
-            {/* Preferred Study Time */}
-            <div>
-              <label className="text-sm font-semibold text-[#64748B] mb-2 block flex items-center gap-1.5">
-                <Clock className="w-4 h-4" />
-                Afzal o'qish vaqti
-              </label>
-              {isEditing ? (
-                <select
-                  value={formData.preferredStudyTime}
-                  onChange={(e) => handleInputChange('preferredStudyTime', e.target.value)}
-                  className="w-full px-4 py-3 bg-[#F8FAFC] border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#5B5FEF] focus:border-transparent text-[#1E293B] font-medium"
-                >
-                  {studyTimes.map((time) => (
-                    <option key={time} value={time}>{time}</option>
-                  ))}
-                </select>
-              ) : (
-                <p className="text-[#1E293B] font-semibold">{formData.preferredStudyTime}</p>
-              )}
-            </div>
-
-            {/* Bio */}
-            <div>
-              <label className="text-sm font-semibold text-[#64748B] mb-2 block">Haqimda</label>
-              {isEditing ? (
-                <textarea
-                  value={formData.bio}
-                  onChange={(e) => handleInputChange('bio', e.target.value)}
-                  rows={3}
-                  className="w-full px-4 py-3 bg-[#F8FAFC] border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#5B5FEF] focus:border-transparent text-[#1E293B] font-medium resize-none"
-                />
-              ) : (
-                <p className="text-[#1E293B] font-medium">{formData.bio}</p>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Notifications */}
-        <div className="bg-white rounded-[20px] p-5 shadow-[0_8px_20px_rgba(0,0,0,0.06)]">
-          <h3 className="text-lg font-bold text-[#1E293B] mb-4 flex items-center gap-2">
-            <Bell className="w-5 h-5 text-[#5B5FEF] stroke-[2]" />
-            Bildirishnomalar
-          </h3>
-
-          <button
-            onClick={() => isEditing && handleInputChange('notificationsEnabled', !formData.notificationsEnabled)}
-            disabled={!isEditing}
-            className="w-full flex items-center justify-between p-4 bg-[#F8FAFC] rounded-xl"
-          >
-            <div className="flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                formData.notificationsEnabled ? 'bg-[#5B5FEF]/10' : 'bg-gray-100'
-              }`}>
-                <Bell className={`w-5 h-5 stroke-[2] ${
-                  formData.notificationsEnabled ? 'text-[#5B5FEF]' : 'text-gray-400'
-                }`} />
-              </div>
-              <div className="text-left">
-                <p className="font-semibold text-[#1E293B]">Push bildirishnomalar</p>
-                <p className="text-sm text-[#64748B]">Test va takliflar haqida xabar olish</p>
-              </div>
-            </div>
-            <div className={`w-12 h-7 rounded-full transition-all ${
-              formData.notificationsEnabled ? 'bg-[#22C55E]' : 'bg-gray-300'
-            } relative`}>
-              <div className={`w-5 h-5 bg-white rounded-full absolute top-1 transition-all ${
-                formData.notificationsEnabled ? 'right-1' : 'left-1'
-              } shadow-sm`}></div>
-            </div>
-          </button>
-        </div>
-
-        {/* Statistics Section */}
-        <div className="bg-gradient-to-br from-[#5B5FEF] to-[#7C3AED] rounded-[20px] p-5 shadow-[0_12px_30px_rgba(91,93,239,0.25)]">
-          <h3 className="text-lg font-bold text-white mb-4">Statistikam</h3>
-          
-          <div className="grid grid-cols-3 gap-3">
-            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 text-center">
-              <p className="text-3xl font-bold text-white mb-1">156</p>
-              <p className="text-white/80 text-xs">Testlar</p>
-            </div>
-            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 text-center">
-              <p className="text-3xl font-bold text-white mb-1">89%</p>
-              <p className="text-white/80 text-xs">O'rtacha</p>
-            </div>
-            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 text-center">
-              <p className="text-3xl font-bold text-white mb-1">1.2k</p>
-              <p className="text-white/80 text-xs">XP</p>
-            </div>
-          </div>
+          )}
         </div>
 
         {/* Action Buttons */}
