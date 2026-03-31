@@ -30,8 +30,8 @@ interface LeaderboardItem {
 
 type FilterType = 'all' | 'best' | 'worst';
 
-const QUIZ_HISTORY_URL = 'http://127.0.0.1:8000/api/v1/quiz/sessions/me/history/';
-const QUIZ_LEADERBOARD_BASE_URL = 'http://127.0.0.1:8000/api/v1/quiz/sessions';
+const QUIZ_HISTORY_URL = 'http://127.0.0.1:8000/api/v1/student/sessions/me/history/';
+const QUIZ_LEADERBOARD_BASE_URL = 'http://127.0.0.1:8000/api/v1/student/sessions';
 
 const getAccessToken = () => {
   return localStorage.getItem('access_token') || sessionStorage.getItem('access_token');

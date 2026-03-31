@@ -47,10 +47,10 @@ interface ParsedMarkdownTable {
   rows: string[][];
 }
 
-const QUESTION_DETAIL_BASE_URL = 'http://127.0.0.1:8000/api/v1/quiz/question/detail';
-const QUESTION_UPLOAD_IMAGE_BASE_URL = 'http://127.0.0.1:8000/api/v1/quiz/question/upload-image';
-const QUESTION_DELETE_IMAGE_BASE_URL = 'http://127.0.0.1:8000/api/v1/quiz/question/delete-image';
-const QUESTION_UPDATE_CORRECT_OPTION_BASE_URL = 'http://127.0.0.1:8000/api/v1/quiz/question/update-correct-option';
+const QUESTION_DETAIL_BASE_URL = 'http://127.0.0.1:8000/api/v1/question/detail';
+const QUESTION_UPLOAD_IMAGE_BASE_URL = 'http://127.0.0.1:8000/api/v1/question/upload-image';
+const QUESTION_DELETE_IMAGE_BASE_URL = 'http://127.0.0.1:8000/api/v1/question/delete-image';
+const QUESTION_UPDATE_CORRECT_OPTION_BASE_URL = 'http://127.0.0.1:8000/api/v1/question/update-correct-option';
 const API_BASE_URL = 'http://127.0.0.1:8000';
 
 declare global {

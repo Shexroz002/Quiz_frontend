@@ -77,7 +77,7 @@ interface Question {
   }[];
 }
 
-const QUIZ_SESSION_BASE_URL = "http://127.0.0.1:8000/api/v1/quiz/sessions";
+const QUIZ_SESSION_BASE_URL = "http://127.0.0.1:8000/api/v1/student/sessions";
 
 const getAccessToken = () => {
   return localStorage.getItem("access_token") || sessionStorage.getItem("access_token");

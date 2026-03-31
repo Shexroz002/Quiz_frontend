@@ -15,8 +15,8 @@ import { useNavigate } from 'react-router';
 import { BottomNavigation } from '../components/BottomNavigation';
 import { getAccessToken } from '../lib/auth';
 
-const SUBJECT_ANALYTICS_URL = 'http://127.0.0.1:8000/api/v1/quiz/analytics/subjects';
-const OVERALL_CARDS_URL = 'http://127.0.0.1:8000/api/v1/quiz/analytics/overall/cards';
+const SUBJECT_ANALYTICS_URL = 'http://127.0.0.1:8000/api/v1/student/quizzes/analytics/subjects';
+const OVERALL_CARDS_URL = 'http://127.0.0.1:8000/api/v1/student/quizzes/analytics/overall/cards';
 
 type SubjectAnalytics = {
   subject_name: string;

@@ -37,8 +37,8 @@ interface PdfJobStatusResponse {
   error: string | null;
 }
 
-const PDF_JOB_UPLOAD_URL = 'http://127.0.0.1:8000/api/v1/quiz/jop/pdf-jobs';
-const PDF_JOB_STATUS_BASE_URL = 'http://127.0.0.1:8000/api/v1/quiz/jop/jobs';
+const PDF_JOB_UPLOAD_URL = 'http://127.0.0.1:8000/api/v1/quiz-generator/pdf-jobs';
+const PDF_JOB_STATUS_BASE_URL = 'http://127.0.0.1:8000/api/v1/quiz-generator/jobs';
 const PDF_JOB_ACTIVE_ID_KEY = 'pdf_active_job_id';
 
 const getAccessToken = () => {

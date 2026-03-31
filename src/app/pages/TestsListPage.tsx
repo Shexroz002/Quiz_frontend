@@ -36,8 +36,8 @@ interface QuizApiItem {
   is_new: boolean;
 }
 
-const QUIZ_LIST_URL = 'http://127.0.0.1:8000/api/v1/quiz/list/';
-const QUIZ_START_SESSION_BASE_URL = 'http://127.0.0.1:8000/api/v1/quiz/sessions';
+const QUIZ_LIST_URL = 'http://127.0.0.1:8000/api/v1/student/quizzes/list';
+const QUIZ_START_SESSION_BASE_URL = 'http://127.0.0.1:8000/api/v1/student/sessions';
 
 const SUBJECT_STYLES: Array<{ pattern: RegExp; iconBg: string; icon: string }> = [
   { pattern: /fizika/i, iconBg: 'bg-indigo-100', icon: '⚡' },

@@ -44,8 +44,8 @@ interface QuestionDetailData {
   options: QuestionOption[];
 }
 
-const QUIZ_DETAIL_BASE_URL = 'http://127.0.0.1:8000/api/v1/quiz';
-const QUESTION_DETAIL_BASE_URL = 'http://127.0.0.1:8000/api/v1/quiz/question/detail';
+const QUIZ_DETAIL_BASE_URL = 'http://127.0.0.1:8000/api/v1/student/quizzes';
+const QUESTION_DETAIL_BASE_URL = 'http://127.0.0.1:8000/api/v1/question/detail';
 
 declare global {
   interface Window {

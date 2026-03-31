@@ -49,9 +49,9 @@ interface UserSearchItem {
   contact_available: boolean;
 }
 
-const CONTACT_LIST_URL = 'http://127.0.0.1:8000/api/v1/contact/list/';
-const CONTACT_SUGGESTIONS_URL = 'http://127.0.0.1:8000/api/v1/contact/suggestions/';
-const CONTACT_CREATE_BASE_URL = 'http://127.0.0.1:8000/api/v1/contact/create';
+const CONTACT_LIST_URL = 'http://127.0.0.1:8000/api/v1/users/contact/list/';
+const CONTACT_SUGGESTIONS_URL = 'http://127.0.0.1:8000/api/v1/users/contact/suggestions/';
+const CONTACT_CREATE_BASE_URL = 'http://127.0.0.1:8000/api/v1/users/contact/create';
 const USERS_SEARCH_URL = 'http://127.0.0.1:8000/api/v1/users/search';
 
 const getAccessToken = () => {

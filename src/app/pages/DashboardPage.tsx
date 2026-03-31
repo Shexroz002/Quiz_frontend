@@ -45,9 +45,9 @@ interface TestInviteNotificationEvent {
 type NotificationSocketEvent = NotificationCountUpdateEvent | TestInviteNotificationEvent;
 
 const NOTIFICATIONS_WS_BASE_URL = 'ws://localhost:8000/ws/notifications';
-const MULTIPLAYER_JOIN_URL = 'http://127.0.0.1:8000/api/v1/quiz/sessions/multiplayer/join/';
+const MULTIPLAYER_JOIN_URL = 'http://127.0.0.1:8000/api/v1/student/sessions/multiplayer/join/';
 const AUTH_ME_URL = 'http://127.0.0.1:8000/api/v1/auth/me/';
-const SUBJECT_ANALYTICS_URL = 'http://127.0.0.1:8000/api/v1/quiz/analytics/subjects';
+const SUBJECT_ANALYTICS_URL = 'http://127.0.0.1:8000/api/v1/student/quizzes/analytics/subjects';
 
 type CurrentUser = {
   id: number;

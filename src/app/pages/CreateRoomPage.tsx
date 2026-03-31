@@ -30,8 +30,8 @@ interface QuizApiItem {
   is_new: boolean;
 }
 
-const QUIZ_LIST_URL = 'http://127.0.0.1:8000/api/v1/quiz/list/';
-const MULTIPLAYER_CREATE_URL = 'http://127.0.0.1:8000/api/v1/quiz/sessions/multiplayer/create/';
+const QUIZ_LIST_URL = 'http://127.0.0.1:8000/api/v1/student/quizzes/list';
+const MULTIPLAYER_CREATE_URL = 'http://127.0.0.1:8000/api/v1/student/sessions/multiplayer/create/';
 const MIN_PARTICIPANTS = 2;
 const MAX_PARTICIPANTS = 100;
 const MIN_DURATION = 1;

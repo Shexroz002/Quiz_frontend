@@ -88,9 +88,9 @@ interface InviteContact {
   avatar: string;
 }
 
-const MULTIPLAYER_INFO_BASE_URL = 'http://127.0.0.1:8000/api/v1/quiz/sessions/multiplayer';
+const MULTIPLAYER_INFO_BASE_URL = 'http://127.0.0.1:8000/api/v1/student/sessions/multiplayer';
 const MULTIPLAYER_PARTICIPANTS_SUFFIX = 'participants/';
-const MULTIPLAYER_LEAVE_URL = 'http://127.0.0.1:8000/api/v1/quiz/sessions/multiplayer/leave/';
+const MULTIPLAYER_LEAVE_URL = 'http://127.0.0.1:8000/api/v1/student/sessions/multiplayer/leave/';
 const MULTIPLAYER_WS_BASE_URL = 'ws://localhost:8000/ws/quiz/sessions';
 const CONTACT_LIST_URL = 'http://127.0.0.1:8000/api/v1/contact/list/';
 const DASHBOARD_ROUTE = '/';
